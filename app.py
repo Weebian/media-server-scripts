@@ -131,7 +131,7 @@ def get_anime():
 def download(results):
     #download on qbittorent
     qb = Client('http://127.0.0.1:8080/')
-    qb.login('piho', 'CuHo1998')
+    qb.login('admin', 'adminadmin')
 
     animes = results[0]
     s_animes = results[1]
