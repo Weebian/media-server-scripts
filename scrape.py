@@ -1,5 +1,10 @@
 import requests
 from selenium import webdriver
+from selenium.webdriver.firefox.options import Options as FirefoxOptions
+from selenium.webdriver.common.by import By
+from selenium.webdriver.support.ui import WebDriverWait
+from selenium.webdriver.support import expected_conditions as EC
+from selenium.common.exceptions import TimeoutException
 import urllib.request
 from bs4 import BeautifulSoup
 import random
@@ -9,7 +14,7 @@ import urllib
 import os
 
 #vars
-dir_path = "/media/piho/rasp2/anime"
+dir_path = "/down"
 A1 = ("Mozilla/5.0 (Windows NT 6.1) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/41.0.2228.0 Safari/537.36",
     "Mozilla/5.0 (Macintosh; Intel Mac OS X 10_10_1) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/41.0.2227.1 Safari/537.36",
     "Mozilla/5.0 (Windows NT 6.1; WOW64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/41.0.2227.0 Safari/537.36",
@@ -33,42 +38,46 @@ def loadingbar(count, block_size, total_size):
                     (percent, progress_size / (1024 * 1024), speed, duration))
     sys.stdout.flush()
 
-def get_eps(url, type):
-    requ = requests.get(url, headers=get_header())
-    soup = BeautifulSoup(requ.text, 'html.parser')
+def get_eps(url):
 
-    if type == "geno":
-        #create folder if not there
-        name = soup.find(class_="anime__details__title").find("h3").text
-        if not os.path.exists(dir_path + '/' + name):
-            os.makedirs(dir_path + '/' + name)
+    #create folder if not there
+    name = url.rpartition('/')[1]
+    if not os.path.exists(dir_path + '/' + name):
+        os.makedirs(dir_path + '/' + name)
 
-        #obtain 
-        eps = []
-        for ep in soup.find_all('a', class_='episode', href=True):
-            eps.append('https://genoanime.com' + ep['href'][2:]) #need to modify url for geno
-        return eps
-    
-    raise ValueError('Error: Invalid type')
+    browser.get(url)
+    html = browser.execute_script("return document.documentElement.innerHTML")
+    soup = BeautifulSoup(html, 'html.parser')
 
-def download(type, eps):
+    print(soup)
+
+    eps = []
+    for ep in soup.find('div', id='eps').find_all('a', href=True):
+        eps.append(url + ep['href']) #need to modify url
+        print(ep)
+
+    return [name, eps]
+
+def download(name, eps):
+    #download eps
     for ep in eps:
         browser.get(ep)
-        time.sleep(3)
-        html = browser.page_source
-        soup = BeautifulSoup(html, 'lxml')
+        html = browser.execute_script("return document.documentElement.outerHTML")
+        soup = BeautifulSoup(html, 'html.parser')
 
-        if type == 'geno':
-            title = soup.find('a', id='anime_details_breadcrumbs').text
-            ep_name = soup.find('li', id="current_episode").text
-            vid_url = soup.find('video', id="video_player_html5_api")['src']
+        if type == '4anime':
+            ep_name = soup.find('li', class_="item ep-item active").find('a').text
+            vid_url = soup.find('video')['src']
 
-        urllib.request.urlretrieve(vid_url, dir_path + '/' + title + '/' + ep_name + '.mp4', loadingbar)
+        urllib.request.urlretrieve(vid_url, dir_path + '/' + name + '/' + ep_name + '.mp4', loadingbar)
+    browser.quit()
+    print("Downloaded " + str(len(eps)) + " episode.")
 
-    print("Downloaded " + len(eps) + " episode.")
-
-type = input("Type (Options: geno): ")
 url = input("Home link: ")
-browser = webdriver.Chrome(executable_path=r"/media/piho/rasp2/chromedriver.exe")
-eps = get_eps(url, type)
-download(type, eps)
+#Open firefox
+options = FirefoxOptions()
+options.add_argument("--headless")
+browser = webdriver.Firefox(options=options)
+
+home_page = get_eps(url)
+download(name=home_page, eps=home_page[1])
