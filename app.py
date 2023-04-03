@@ -33,8 +33,8 @@ def fit_criteria(rows):
 
     #obtain list of animes to download
     with open(anime_folder_path + '/anime.txt', 'r') as f:
-        animes_to_download = f.readlines()
-
+        animes_to_download = f.read().splitlines() #splitlines removes /n from read
+        
     for tr in rows:
         tds = tr.find_all('td') #obtian tds in the row
         
@@ -63,12 +63,12 @@ def fit_criteria(rows):
 
         #update for anime and episode
         for atd in animes_to_download:
-            if atd in name:
+            if atd.lower() in name.lower() and quality:
                 anime = name
                 animes_to_download.remove(atd)
                 break
 
-        if date and  quality and anime:
+        if date and quality and anime:
             results.append({
                 'anime': anime,
                 'url': url
@@ -81,7 +81,7 @@ def fit_criteria_sukebei(rows):
     results = []
 
     for tr in rows:
-        tds = tr.find_all('td') #obtian tds in the row
+        tds = tr.find_all('td') #obtain tds in the row
 
         #Checks
         if len(tds) == 0:
@@ -144,8 +144,12 @@ def download(results):
     #save results as a log
     with open(web_folder_path + '/anime_' + yesterday + '.txt', 'w') as fout:
         json.dump(animes, fout)
+    with open(web_folder_path + '/anime_' + yesterday + '.txt', 'a') as fout:
+        fout.write("\nAdded " + str(len(animes)) + " animes")
     with open(web_folder_path + '/s_animes_' + yesterday + '.txt', 'w') as fout:
         json.dump(s_animes, fout)
+    with open(web_folder_path + '/s_animes_' + yesterday + '.txt', 'a') as fout:
+        fout.write("\nAdded " + str(len(s_animes)) + " sukubei animes")
     print('Success downloaded ' + str(len(animes)) + ' animes')
     print('Success downloaded ' + str(len(s_animes)) + ' sukubei animes')
 
