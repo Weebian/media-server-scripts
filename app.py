@@ -47,7 +47,7 @@ def fit_criteria(rows):
             continue
 
         #Vars
-        name = tds[1].find('a').contents[0]
+        name = tds[1].find_all('a', class_=None)[0].contents[0]
         url = str(tds[2].find_all('a')[1]['href'])
         date = False
         quality = False
