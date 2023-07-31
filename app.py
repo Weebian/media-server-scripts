@@ -5,6 +5,9 @@ import random
 import datetime
 import json
 from qbittorrent import Client
+import smtplib
+from email.mime.text import MIMEText
+from email.mime.multipart import MIMEMultipart
 
 #variables
 web_folder_path = "/media/piho/rasp2/webcontent" #folder directory
@@ -16,6 +19,78 @@ A1 = ("Mozilla/5.0 (Windows NT 6.1) AppleWebKit/537.36 (KHTML, like Gecko) Chrom
 nurls = ['https://nyaa.si/?f=2&c=1_0&q=&p=1', 'https://nyaa.si/?f=2&c=1_0&q=&p=2', 'https://nyaa.si/?f=2&c=1_0&q=&p=3'] #nyaa url
 surls_ani = ['https://sukebei.nyaa.si/?f=2&c=1_1&q=english'] #sukubei anime
 yesterday = (datetime.datetime.now() - datetime.timedelta(days=1)).strftime('%Y-%m-%d') #yesterday's date
+
+#Credentials
+user = "###"
+pwd = "###"
+
+#Log and mail
+message = MIMEMultipart("alternative")
+message["From"] = user
+message["To"] = user
+message["Subject"] = f"Torrent NAS Log: {yesterday}"
+error_message = "Unable to connect to qBittorent"
+
+def format_message(processed):
+    if not processed:
+        text = error_message
+        html = f"""\
+        <html>
+        <body>
+            <h1>Error</h1>
+            <p>{error_message}</p>
+        </body>
+        </html>
+        """
+        return [text, html]
+    
+    animes, sukubei = processed
+    num_animes = str(len(animes))
+    num_sukubei = str(len(sukubei))
+
+    text = f"""\
+    Anime downloaded ({num_animes})"""
+    html = f"""\
+    <html>
+    <body>
+        <h1>Anime</h1>
+        <p>Downloaded: <b>{num_animes}</b></p>
+        <ul>
+    """
+
+    for anime in animes:
+        name = anime['anime']
+        text += f"\n{name}"
+        html += f"<li>{name}</li>"
+
+    text += f"\nSukubei Downloaded ({num_sukubei})"
+    html += f"""\
+            </ul>
+            <h1>Sukubei</h1>
+            <p>Downloaded: <b>{num_sukubei}</b></p>
+        </body>
+        </html>
+        """
+
+    return [text, html]
+
+def mail(text, html):
+
+    # Turn these into plain/html MIMEText objects
+    part1 = MIMEText(text, "plain")
+    part2 = MIMEText(html, "html")
+
+    # Add HTML/plain-text parts to MIMEMultipart message
+    # The email client will try to render the last part first
+    message.attach(part1)
+    message.attach(part2)
+
+    with smtplib.SMTP('smtp.office365.com', 587) as server:
+        server.ehlo()
+        server.starttls()
+        server.login(user, pwd)
+        server.sendmail(user, user, message.as_string())
+        server.quit()
 
 def clear_dir():
     files = [f for f in os.listdir(web_folder_path)]
@@ -129,29 +204,37 @@ def get_anime():
     return [animes, s_animes]
 
 def download(results):
-    #download on qbittorent
-    qb = Client('http://127.0.0.1:8080/')
-    qb.login('admin', 'adminadmin')
+    try:
+        #download on qbittorent
+        qb = Client('http://127.0.0.1:8080/')
+        qb.login('admin', 'adminadmin')
 
-    animes = results[0]
-    s_animes = results[1]
+        animes = results[0]
+        s_animes = results[1]
 
-    for anime in animes:
-        qb.download_from_link(anime.get('url'), category='anime')
-    for s_anime in s_animes:
-        qb.download_from_link(s_anime.get('url'), savepath='/media/piho/rasp2/sukubei/anime', category='sukubei_anime')
+        for anime in animes:
+            qb.download_from_link(anime.get('url'), category='anime')
+        for s_anime in s_animes:
+            qb.download_from_link(s_anime.get('url'), savepath='/media/piho/rasp2/sukubei/anime', category='sukubei_anime')
 
-    #save results as a log
-    with open(web_folder_path + '/anime_' + yesterday + '.txt', 'w') as fout:
-        json.dump(animes, fout)
-    with open(web_folder_path + '/anime_' + yesterday + '.txt', 'a') as fout:
-        fout.write("\nAdded " + str(len(animes)) + " animes")
-    with open(web_folder_path + '/s_animes_' + yesterday + '.txt', 'w') as fout:
-        json.dump(s_animes, fout)
-    with open(web_folder_path + '/s_animes_' + yesterday + '.txt', 'a') as fout:
-        fout.write("\nAdded " + str(len(s_animes)) + " sukubei animes")
-    print('Success downloaded ' + str(len(animes)) + ' animes')
-    print('Success downloaded ' + str(len(s_animes)) + ' sukubei animes')
+        #save results as a log
+        with open(web_folder_path + '/anime_' + yesterday + '.txt', 'w') as fout:
+            json.dump(animes, fout)
+        with open(web_folder_path + '/anime_' + yesterday + '.txt', 'a') as fout:
+            fout.write("\nAdded " + str(len(animes)) + " animes")
+        with open(web_folder_path + '/s_animes_' + yesterday + '.txt', 'w') as fout:
+            json.dump(s_animes, fout)
+        with open(web_folder_path + '/s_animes_' + yesterday + '.txt', 'a') as fout:
+            fout.write("\nAdded " + str(len(s_animes)) + " sukubei animes")
+        print('Success downloaded ' + str(len(animes)) + ' animes')
+        print('Success downloaded ' + str(len(s_animes)) + ' sukubei animes')
+        processed = results
+    except:
+        processed = None
+        print(error_message)
+
+    text, html = format_message(processed)
+    mail(text, html)
 
 clear_dir() #clear yesterday's changelog
 headers = get_header()
